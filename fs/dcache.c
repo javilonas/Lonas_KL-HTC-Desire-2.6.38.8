@@ -1815,7 +1815,7 @@ struct dentry *__d_lookup_rcu(struct dentry *parent, struct qstr *name,
 	 * false-negative result. d_lookup() protects against concurrent
 	 * renames using rename_lock seqlock.
 	 *
-	 * See Documentation/vfs/dcache-locking.txt for more details.
+	 * See Documentation/filesystems/path-lookup.txt for more details.
 	 */
 	hlist_bl_for_each_entry_rcu(dentry, node, &b->head, d_hash) {
 		struct inode *i;
@@ -1935,7 +1935,7 @@ struct dentry *__d_lookup(struct dentry *parent, struct qstr *name)
 	 * false-negative result. d_lookup() protects against concurrent
 	 * renames using rename_lock seqlock.
 	 *
-	 * See Documentation/vfs/dcache-locking.txt for more details.
+	 * See Documentation/filesystems/path-lookup.txt for more details.
 	 */
 	rcu_read_lock();
 	
