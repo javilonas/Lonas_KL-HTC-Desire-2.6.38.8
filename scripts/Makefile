@@ -23,6 +23,11 @@ PHONY += build_unifdef
 build_unifdef: scripts/unifdef FORCE
 	@:
 
+# This target is used internally to avoid "is up to date" messages
+PHONY += build_unifdef
+build_unifdef: scripts/unifdef FORCE
+	@:
+
 subdir-$(CONFIG_MODVERSIONS) += genksyms
 subdir-y                     += mod
 subdir-$(CONFIG_SECURITY_SELINUX) += selinux

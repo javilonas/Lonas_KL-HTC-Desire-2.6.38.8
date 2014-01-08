@@ -106,6 +106,10 @@ ifeq ("$(origin W)", "command line")
   export KBUILD_ENABLE_EXTRA_GCC_CHECKS := $(W)
 endif
 
+ifeq ("$(origin W)", "command line")
+  export KBUILD_ENABLE_EXTRA_GCC_CHECKS := 1
+endif
+
 # That's our default target when none is given on the command line
 PHONY := _all
 _all:
