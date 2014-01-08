@@ -414,7 +414,7 @@
  * @__NL80211_CMD_AFTER_LAST: internal use
  */
 enum nl80211_commands {
-/* don't change the order or add anything inbetween, this is ABI! */
+/* don't change the order or add anything between, this is ABI! */
 	NL80211_CMD_UNSPEC,
 
 	NL80211_CMD_GET_WIPHY,		/* can dump */
@@ -860,7 +860,7 @@ enum nl80211_commands {
  *	This can be used to mask out antennas which are not attached or should
  *	not be used for receiving. If an antenna is not selected in this bitmap
  *	the hardware should not be configured to receive on this antenna.
- *	For a more detailed descripton see @NL80211_ATTR_WIPHY_ANTENNA_TX.
+ *	For a more detailed description see @NL80211_ATTR_WIPHY_ANTENNA_TX.
  *
  * @NL80211_ATTR_WIPHY_ANTENNA_AVAIL_TX: Bitmap of antennas which are available
  *	for configuration as TX antennas via the above parameters.
@@ -891,7 +891,7 @@ enum nl80211_commands {
  * @__NL80211_ATTR_AFTER_LAST: internal use
  */
 enum nl80211_attrs {
-/* don't change the order or add anything inbetween, this is ABI! */
+/* don't change the order or add anything between, this is ABI! */
 	NL80211_ATTR_UNSPEC,
 
 	NL80211_ATTR_WIPHY,
@@ -1222,36 +1222,6 @@ enum nl80211_rate_info {
 };
 
 /**
- * enum nl80211_sta_bss_param - BSS information collected by STA
- *
- * These attribute types are used with %NL80211_STA_INFO_BSS_PARAM
- * when getting information about the bitrate of a station.
- *
- * @__NL80211_STA_BSS_PARAM_INVALID: attribute number 0 is reserved
- * @NL80211_STA_BSS_PARAM_CTS_PROT: whether CTS protection is enabled (flag)
- * @NL80211_STA_BSS_PARAM_SHORT_PREAMBLE:  whether short preamble is enabled
- *	(flag)
- * @NL80211_STA_BSS_PARAM_SHORT_SLOT_TIME:  whether short slot time is enabled
- *	(flag)
- * @NL80211_STA_BSS_PARAM_DTIM_PERIOD: DTIM period for beaconing (u8)
- * @NL80211_STA_BSS_PARAM_BEACON_INTERVAL: Beacon interval (u16)
- * @NL80211_STA_BSS_PARAM_MAX: highest sta_bss_param number currently defined
- * @__NL80211_STA_BSS_PARAM_AFTER_LAST: internal use
- */
-enum nl80211_sta_bss_param {
-	__NL80211_STA_BSS_PARAM_INVALID,
-	NL80211_STA_BSS_PARAM_CTS_PROT,
-	NL80211_STA_BSS_PARAM_SHORT_PREAMBLE,
-	NL80211_STA_BSS_PARAM_SHORT_SLOT_TIME,
-	NL80211_STA_BSS_PARAM_DTIM_PERIOD,
-	NL80211_STA_BSS_PARAM_BEACON_INTERVAL,
-
-	/* keep last */
-	__NL80211_STA_BSS_PARAM_AFTER_LAST,
-	NL80211_STA_BSS_PARAM_MAX = __NL80211_STA_BSS_PARAM_AFTER_LAST - 1
-};
-
-/**
  * enum nl80211_sta_info - station information
  *
  * These attribute types are used with %NL80211_ATTR_STA_INFO
@@ -1263,7 +1233,7 @@ enum nl80211_sta_bss_param {
  * @NL80211_STA_INFO_TX_BYTES: total transmitted bytes (u32, to this station)
  * @NL80211_STA_INFO_SIGNAL: signal strength of last received PPDU (u8, dBm)
  * @NL80211_STA_INFO_TX_BITRATE: current unicast tx rate, nested attribute
- * 	containing info as possible, see &enum nl80211_rate_info
+ * 	containing info as possible, see &enum nl80211_sta_info_txrate.
  * @NL80211_STA_INFO_RX_PACKETS: total received packet (u32, from this station)
  * @NL80211_STA_INFO_TX_PACKETS: total transmitted packets (u32, to this
  *	station)
@@ -1275,9 +1245,6 @@ enum nl80211_sta_bss_param {
  * @NL80211_STA_INFO_PLINK_STATE: peer link state for the station
  * @NL80211_STA_INFO_RX_BITRATE: last unicast data frame rx rate, nested
  *	attribute, like NL80211_STA_INFO_TX_BITRATE.
- * @NL80211_STA_INFO_BSS_PARAM: current station's view of BSS, nested attribute
- *     containing info as possible, see &enum nl80211_sta_bss_param
- * @NL80211_STA_INFO_CONNECTED_TIME: time since the station is last connected
  * @__NL80211_STA_INFO_AFTER_LAST: internal
  * @NL80211_STA_INFO_MAX: highest possible station info attribute
  */
@@ -1297,8 +1264,6 @@ enum nl80211_sta_info {
 	NL80211_STA_INFO_TX_FAILED,
 	NL80211_STA_INFO_SIGNAL_AVG,
 	NL80211_STA_INFO_RX_BITRATE,
-	NL80211_STA_INFO_BSS_PARAM,
-	NL80211_STA_INFO_CONNECTED_TIME,
 
 	/* keep last */
 	__NL80211_STA_INFO_AFTER_LAST,
@@ -1454,7 +1419,7 @@ enum nl80211_bitrate_attr {
  * 	802.11 country information element with regulatory information it
  * 	thinks we should consider. cfg80211 only processes the country
  *	code from the IE, and relies on the regulatory domain information
- *	structure pased by userspace (CRDA) from our wireless-regdb.
+ *	structure passed by userspace (CRDA) from our wireless-regdb.
  *	If a channel is enabled but the country code indicates it should
  *	be disabled we disable the channel and re-enable it upon disassociation.
  */
@@ -1633,7 +1598,7 @@ enum nl80211_mntr_flags {
  * @NL80211_MESHCONF_RETRY_TIMEOUT: specifies the initial retry timeout in
  * millisecond units, used by the Peer Link Open message
  *
- * @NL80211_MESHCONF_CONFIRM_TIMEOUT: specifies the inital confirm timeout, in
+ * @NL80211_MESHCONF_CONFIRM_TIMEOUT: specifies the initial confirm timeout, in
  * millisecond units, used by the peer link management to close a peer link
  *
  * @NL80211_MESHCONF_HOLDING_TIMEOUT: specifies the holding timeout, in

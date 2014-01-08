@@ -76,7 +76,7 @@ MODULE_PARM_DESC(report_undeciphered, "Report undeciphered multi-touch state fie
  * This is true when single_touch_id is equal to NO_TOUCHES. If multiple touches
  * are down and the touch providing for single touch emulation is lifted,
  * single_touch_id is equal to SINGLE_TOUCH_UP. While single touch emulation is
- * occuring, single_touch_id corresponds with the tracking id of the touch used.
+ * occurring, single_touch_id corresponds with the tracking id of the touch used.
  */
 #define NO_TOUCHES -1
 #define SINGLE_TOUCH_UP -2
@@ -501,17 +501,9 @@ static int magicmouse_probe(struct hid_device *hdev,
 	}
 	report->size = 6;
 
-	/*
-	 * The device reponds with 'invalid report id' when feature
-	 * report switching it into multitouch mode is sent to it.
-	 *
-	 * This results in -EIO from the _raw low-level transport callback,
-	 * but there seems to be no other way of switching the mode.
-	 * Thus the super-ugly hacky success check below.
-	 */
 	ret = hdev->hid_output_raw_report(hdev, feature, sizeof(feature),
 			HID_FEATURE_REPORT);
-	if (ret != -EIO) {
+	if (ret != sizeof(feature)) {
 		hid_err(hdev, "unable to request touch data (%d)\n", ret);
 		goto err_stop_hw;
 	}

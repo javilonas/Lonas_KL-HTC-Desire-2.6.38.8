@@ -126,30 +126,6 @@ struct tag_cmdline {
 	char	cmdline[1];	/* this is the minimum size */
 };
 
-#ifdef CONFIG_MICROP_COMMON
-/* Microp version */
-#define ATAG_MICROP_VERSION   0x5441000a
-
-struct tag_microp_version {
-	char ver[4];
-};
-
-/* Light sensor calibration value */
-#define ATAG_ALS	0x5441001b
-
-struct tag_als_kadc {
-	__u32 kadc;
-};
-
-/* Proximity sensor calibration values */
-#define ATAG_PS		0x5441001c
-
-struct tag_ps_kparam {
-	__u32 kparam1;
-	__u32 kparam2;
-};
-#endif
-
 /* acorn RiscPC specific information */
 #define ATAG_ACORN	0x41000101
 
@@ -177,11 +153,6 @@ struct tag {
 		struct tag_initrd	initrd;
 		struct tag_serialnr	serialnr;
 		struct tag_revision	revision;
-#ifdef CONFIG_MICROP_COMMON
-		struct tag_microp_version	microp_version;
-		struct tag_als_kadc als_kadc;
-		struct tag_ps_kparam	ps_kparam;
-#endif
 		struct tag_videolfb	videolfb;
 		struct tag_cmdline	cmdline;
 
@@ -221,14 +192,10 @@ static struct tagtable __tagtable_##fn __tag = { tag, fn }
 /*
  * Memory map description
  */
-#ifdef CONFIG_ARCH_LH7A40X
-# define NR_BANKS 16
-#else
-# define NR_BANKS 8
-#endif
+#define NR_BANKS 8
 
 struct membank {
-	unsigned long start;
+	phys_addr_t start;
 	unsigned long size;
 	unsigned int highmem;
 };
@@ -249,19 +216,6 @@ extern struct meminfo meminfo;
 #define bank_phys_start(bank)	(bank)->start
 #define bank_phys_end(bank)	((bank)->start + (bank)->size)
 #define bank_phys_size(bank)	(bank)->size
-
-
-/*
- * Early command line parameters.
- */
-struct early_params {
-	const char *arg;
-	void (*fn)(char **p);
-};
-
-#define __early_param(name,fn)					\
-static struct early_params __early_##fn __used			\
-__attribute__((__section__(".early_param.init"))) = { name, fn }
 
 #endif  /*  __KERNEL__  */
 

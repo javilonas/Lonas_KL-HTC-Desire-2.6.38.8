@@ -42,6 +42,7 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/nand.h>
 #include <linux/mtd/nand_ecc.h>
+#include <linux/mtd/nand_bch.h>
 #include <linux/interrupt.h>
 #include <linux/bitops.h>
 #include <linux/leds.h>
@@ -1581,7 +1582,7 @@ static int nand_do_read_ops(struct mtd_info *mtd, loff_t from,
 }
 
 /**
- * nand_read - [MTD Interface] MTD compability function for nand_do_read_ecc
+ * nand_read - [MTD Interface] MTD compatibility function for nand_do_read_ecc
  * @mtd:	MTD device structure
  * @from:	offset to read from
  * @len:	number of bytes to read
@@ -2377,7 +2378,7 @@ static int nand_do_write_oob(struct mtd_info *mtd, loff_t to,
 		return -EINVAL;
 	}
 
-	/* Do not allow reads past end of device */
+	/* Do not allow write past end of device */
 	if (unlikely(to >= mtd->size ||
 		     ops->ooboffs + ops->ooblen >
 			((mtd->size >> chip->page_shift) -
@@ -3111,8 +3112,6 @@ ident_done:
 		chip->chip_shift += 32 - 1;
 	}
 
-	chip->badblockbits = 8;
-
 	/* Set the bad block position */
 	if (mtd->writesize > 512 || (busw & NAND_BUSWIDTH_16))
 		chip->badblockpos = NAND_LARGE_BADBLOCK_POS;
@@ -3225,44 +3224,6 @@ int nand_scan_ident(struct mtd_info *mtd, int maxchips,
 }
 EXPORT_SYMBOL(nand_scan_ident);
 
-static void nand_panic_wait(struct mtd_info *mtd)
-{
-	struct nand_chip *chip = mtd->priv;
-	int i;
-
-	if (chip->state != FL_READY)
-		for (i = 0; i < 40; i++) {
-			if (chip->dev_ready(mtd))
-				break;
-			mdelay(10);
-		}
-	chip->state = FL_READY;
-}
-
-static int nand_panic_write(struct mtd_info *mtd, loff_t to, size_t len,
-			    size_t *retlen, const u_char *buf)
-{
-	struct nand_chip *chip = mtd->priv;
-	int ret;
-
-	/* Do not allow reads past end of device */
-	if ((to + len) > mtd->size)
-		return -EINVAL;
-	if (!len)
-		return 0;
-
-	nand_panic_wait(mtd);
-
-	chip->ops.len = len;
-	chip->ops.datbuf = (uint8_t *)buf;
-	chip->ops.oobbuf = NULL;
-
-	ret = nand_do_write_ops(mtd, to, &chip->ops);
-
-	*retlen = chip->ops.retlen;
-	return ret;
-}
-
 
 /**
  * nand_scan_tail - [NAND Interface] Scan for the NAND device
@@ -3288,7 +3249,7 @@ int nand_scan_tail(struct mtd_info *mtd)
 	/*
 	 * If no default placement scheme is given, select an appropriate one
 	 */
-	if (!chip->ecc.layout) {
+	if (!chip->ecc.layout && (chip->ecc.mode != NAND_ECC_SOFT_BCH)) {
 		switch (mtd->oobsize) {
 		case 8:
 			chip->ecc.layout = &nand_oob_8;
@@ -3391,6 +3352,40 @@ int nand_scan_tail(struct mtd_info *mtd)
 		chip->ecc.bytes = 3;
 		break;
 
+	case NAND_ECC_SOFT_BCH:
+		if (!mtd_nand_has_bch()) {
+			printk(KERN_WARNING "CONFIG_MTD_ECC_BCH not enabled\n");
+			BUG();
+		}
+		chip->ecc.calculate = nand_bch_calculate_ecc;
+		chip->ecc.correct = nand_bch_correct_data;
+		chip->ecc.read_page = nand_read_page_swecc;
+		chip->ecc.read_subpage = nand_read_subpage;
+		chip->ecc.write_page = nand_write_page_swecc;
+		chip->ecc.read_page_raw = nand_read_page_raw;
+		chip->ecc.write_page_raw = nand_write_page_raw;
+		chip->ecc.read_oob = nand_read_oob_std;
+		chip->ecc.write_oob = nand_write_oob_std;
+		/*
+		 * Board driver should supply ecc.size and ecc.bytes values to
+		 * select how many bits are correctable; see nand_bch_init()
+		 * for details.
+		 * Otherwise, default to 4 bits for large page devices
+		 */
+		if (!chip->ecc.size && (mtd->oobsize >= 64)) {
+			chip->ecc.size = 512;
+			chip->ecc.bytes = 7;
+		}
+		chip->ecc.priv = nand_bch_init(mtd,
+					       chip->ecc.size,
+					       chip->ecc.bytes,
+					       &chip->ecc.layout);
+		if (!chip->ecc.priv) {
+			printk(KERN_WARNING "BCH ECC initialization failed!\n");
+			BUG();
+		}
+		break;
+
 	case NAND_ECC_NONE:
 		printk(KERN_WARNING "NAND_ECC_NONE selected by board driver. "
 		       "This is not recommended !!\n");
@@ -3472,7 +3467,6 @@ int nand_scan_tail(struct mtd_info *mtd)
 	mtd->panic_write = panic_nand_write;
 	mtd->read_oob = nand_read_oob;
 	mtd->write_oob = nand_write_oob;
-	mtd->panic_write = nand_panic_write;
 	mtd->sync = nand_sync;
 	mtd->lock = NULL;
 	mtd->unlock = NULL;
@@ -3541,6 +3535,9 @@ EXPORT_SYMBOL(nand_scan);
 void nand_release(struct mtd_info *mtd)
 {
 	struct nand_chip *chip = mtd->priv;
+
+	if (chip->ecc.mode == NAND_ECC_SOFT_BCH)
+		nand_bch_free((struct nand_bch_control *)chip->ecc.priv);
 
 #ifdef CONFIG_MTD_PARTITIONS
 	/* Deregister partitions */

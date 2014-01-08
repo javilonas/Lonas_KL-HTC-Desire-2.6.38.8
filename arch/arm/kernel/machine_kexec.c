@@ -75,13 +75,17 @@ void machine_crash_shutdown(struct pt_regs *regs)
 	printk(KERN_INFO "Loading crashdump kernel...\n");
 }
 
+/*
+ * Function pointer to optional machine-specific reinitialization
+ */
+void (*kexec_reinit)(void);
+
 void machine_kexec(struct kimage *image)
 {
 	unsigned long page_list;
 	unsigned long reboot_code_buffer_phys;
 	void *reboot_code_buffer;
 
-	arch_kexec();
 
 	page_list = image->head & PAGE_MASK;
 
@@ -105,6 +109,8 @@ void machine_kexec(struct kimage *image)
 			   (unsigned long) reboot_code_buffer + KEXEC_CONTROL_PAGE_SIZE);
 	printk(KERN_INFO "Bye!\n");
 
+	if (kexec_reinit)
+		kexec_reinit();
 	local_irq_disable();
 	local_fiq_disable();
 	setup_mm_for_reboot(0); /* mode is not used, so just pass 0*/
@@ -114,5 +120,5 @@ void machine_kexec(struct kimage *image)
 	cpu_proc_fin();
 	outer_inv_all();
 	flush_cache_all();
-	__virt_to_phys(cpu_reset)(reboot_code_buffer_phys);
+	cpu_reset(reboot_code_buffer_phys);
 }

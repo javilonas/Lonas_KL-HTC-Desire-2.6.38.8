@@ -465,6 +465,7 @@ static int __rfcomm_dlc_close(struct rfcomm_dlc *d, int err)
 
 	switch (d->state) {
 	case BT_CONNECT:
+	case BT_CONFIG:
 		if (test_and_clear_bit(RFCOMM_DEFER_SETUP, &d->flags)) {
 			set_bit(RFCOMM_AUTH_REJECT, &d->flags);
 			rfcomm_schedule();
@@ -2152,8 +2153,6 @@ static struct dentry *rfcomm_dlc_debugfs;
 static int __init rfcomm_init(void)
 {
 	int err;
-
-	l2cap_load();
 
 	hci_register_cb(&rfcomm_cb);
 

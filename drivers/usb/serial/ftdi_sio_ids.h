@@ -491,11 +491,6 @@
 /* www.canusb.com Lawicel CANUSB device (FTDI_VID) */
 #define FTDI_CANUSB_PID 0xFFA8 /* Product Id */
 
-/*
- * TavIR AVR product ids (FTDI_VID)
- */
-#define FTDI_TAVIR_STK500_PID	0xFA33	/* STK500 AVR programmer */
-
 
 
 /********************************/
@@ -738,6 +733,7 @@
 /* Olimex */
 #define OLIMEX_VID			0x15BA
 #define OLIMEX_ARM_USB_OCD_PID		0x0003
+#define OLIMEX_ARM_USB_OCD_H_PID	0x002b
 
 /*
  * Telldus Technologies

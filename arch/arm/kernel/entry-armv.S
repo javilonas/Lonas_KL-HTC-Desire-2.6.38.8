@@ -4,7 +4,6 @@
  *  Copyright (C) 1996,1997,1998 Russell King.
  *  ARM700 fix by Matthew Godbolt (linux-user@willothewisp.demon.co.uk)
  *  nommu support by Hyok S. Choi (hyok.choi@samsung.com)
- *  Copyright (c) 2009, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -17,7 +16,8 @@
  */
 
 #include <asm/memory.h>
-#include <asm/glue.h>
+#include <asm/glue-df.h>
+#include <asm/glue-pf.h>
 #include <asm/vfpmacros.h>
 #include <mach/entry-macro.S>
 #include <asm/thread_notify.h>
@@ -29,17 +29,18 @@
 #include <asm/entry-macro-multi.S>
 
 /*
- * Interrupt handling.
+ * Interrupt handling.  Preserves r7, r8, r9
  */
 	.macro	irq_handler
 #ifdef CONFIG_MULTI_IRQ_HANDLER
-	ldr	r1, =handle_arch_irq
+	ldr	r5, =handle_arch_irq
 	mov	r0, sp
+	ldr	r5, [r5]
 	adr	lr, BSYM(9997f)
-	ldr	pc, [r1]
-#else
-	arch_irq_handler_default
+	teq	r5, #0
+	movne	pc, r5
 #endif
+	arch_irq_handler_default
 9997:
 	.endm
 
@@ -491,7 +492,7 @@ __und_usr:
 	blo	__und_usr_unknown
 3:	ldrht	r0, [r4]
 	add	r2, r2, #2			@ r2 is PC + 2, make it PC + 4
-	orr    	r0, r0, r5, lsl #16
+	orr	r0, r0, r5, lsl #16
 #else
 	b	__und_usr_unknown
 #endif
@@ -729,14 +730,7 @@ ENTRY(__switch_to)
 	ldr	r7, [r7, #TSK_STACK_CANARY]
 #endif
 #ifdef CONFIG_CPU_USE_DOMAINS
-#ifdef CONFIG_EMULATE_DOMAIN_MANAGER_V7
-	stmdb	r13!, {r0-r3, lr}
-	mov	r0, r6
-	bl	emulate_domain_manager_set
-	ldmia	r13!, {r0-r3, lr}
-#else
 	mcr	p15, 0, r6, c3, c0, 0		@ Set domain register
-#endif
 #endif
 	mov	r5, r0
 	add	r4, r2, #TI_CPU_SAVE

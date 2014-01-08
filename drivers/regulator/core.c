@@ -1002,29 +1002,6 @@ static int set_consumer_device_supply(struct regulator_dev *rdev,
 	return 0;
 }
 
-static void unset_consumer_device_supply(struct regulator_dev *rdev,
-	const char *consumer_dev_name, struct device *consumer_dev)
-{
-	struct regulator_map *node, *n;
-
-	if (consumer_dev && !consumer_dev_name)
-		consumer_dev_name = dev_name(consumer_dev);
-
-	list_for_each_entry_safe(node, n, &regulator_map_list, list) {
-		if (rdev != node->regulator)
-			continue;
-
-		if (consumer_dev_name && node->dev_name &&
-			strcmp(consumer_dev_name, node->dev_name))
-				continue;
-
-		list_del(&node->list);
-		kfree(node->dev_name);
-		kfree(node);
-		return;
-	}
-}
-
 static void unset_regulator_supplies(struct regulator_dev *rdev)
 {
 	struct regulator_map *node, *n;
@@ -1336,7 +1313,7 @@ static int _regulator_enable(struct regulator_dev *rdev)
 				return -EINVAL;
 
 			/* Query before enabling in case configuration
-			 * dependant.  */
+			 * dependent.  */
 			ret = _regulator_get_enable_time(rdev);
 			if (ret >= 0) {
 				delay = ret;
@@ -1652,6 +1629,7 @@ static int _regulator_do_set_voltage(struct regulator_dev *rdev,
 				     int min_uV, int max_uV)
 {
 	int ret;
+	int delay = 0;
 	unsigned int selector;
 
 	trace_regulator_set_voltage(rdev_get_name(rdev), min_uV, max_uV);
@@ -1685,6 +1663,22 @@ static int _regulator_do_set_voltage(struct regulator_dev *rdev,
 			}
 		}
 
+		/*
+		 * If we can't obtain the old selector there is not enough
+		 * info to call set_voltage_time_sel().
+		 */
+		if (rdev->desc->ops->set_voltage_time_sel &&
+		    rdev->desc->ops->get_voltage_sel) {
+			unsigned int old_selector = 0;
+
+			ret = rdev->desc->ops->get_voltage_sel(rdev);
+			if (ret < 0)
+				return ret;
+			old_selector = ret;
+			delay = rdev->desc->ops->set_voltage_time_sel(rdev,
+						old_selector, selector);
+		}
+
 		if (best_val != INT_MAX) {
 			ret = rdev->desc->ops->set_voltage_sel(rdev, selector);
 			selector = best_val;
@@ -1693,6 +1687,14 @@ static int _regulator_do_set_voltage(struct regulator_dev *rdev,
 		}
 	} else {
 		ret = -EINVAL;
+	}
+
+	/* Insert any necessary delays */
+	if (delay >= 1000) {
+		mdelay(delay / 1000);
+		udelay(delay % 1000);
+	} else if (delay) {
+		udelay(delay);
 	}
 
 	if (ret == 0)
@@ -1761,6 +1763,51 @@ out:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(regulator_set_voltage);
+
+/**
+ * regulator_set_voltage_time - get raise/fall time
+ * @regulator: regulator source
+ * @old_uV: starting voltage in microvolts
+ * @new_uV: target voltage in microvolts
+ *
+ * Provided with the starting and ending voltage, this function attempts to
+ * calculate the time in microseconds required to rise or fall to this new
+ * voltage.
+ */
+int regulator_set_voltage_time(struct regulator *regulator,
+			       int old_uV, int new_uV)
+{
+	struct regulator_dev	*rdev = regulator->rdev;
+	struct regulator_ops	*ops = rdev->desc->ops;
+	int old_sel = -1;
+	int new_sel = -1;
+	int voltage;
+	int i;
+
+	/* Currently requires operations to do this */
+	if (!ops->list_voltage || !ops->set_voltage_time_sel
+	    || !rdev->desc->n_voltages)
+		return -EINVAL;
+
+	for (i = 0; i < rdev->desc->n_voltages; i++) {
+		/* We only look for exact voltage matches here */
+		voltage = regulator_list_voltage(regulator, i);
+		if (voltage < 0)
+			return -EINVAL;
+		if (voltage == 0)
+			continue;
+		if (voltage == old_uV)
+			old_sel = i;
+		if (voltage == new_uV)
+			new_sel = i;
+	}
+
+	if (old_sel < 0 || new_sel < 0)
+		return -EINVAL;
+
+	return ops->set_voltage_time_sel(rdev, old_sel, new_sel);
+}
+EXPORT_SYMBOL_GPL(regulator_set_voltage_time);
 
 /**
  * regulator_sync_voltage - re-apply last regulator output voltage
@@ -2589,13 +2636,11 @@ struct regulator_dev *regulator_register(struct regulator_desc *regulator_desc,
 			init_data->consumer_supplies[i].dev_name,
 			init_data->consumer_supplies[i].supply);
 		if (ret < 0) {
-			for (--i; i >= 0; i--)
-				unset_consumer_device_supply(rdev,
-					init_data->consumer_supplies[i].dev_name,
-					init_data->consumer_supplies[i].dev);
-				goto scrub;
+			dev_err(dev, "Failed to set supply %s\n",
+				init_data->consumer_supplies[i].supply);
+			goto unset_supplies;
+		}
 	}
-}
 
 	list_add(&rdev->list, &regulator_list);
 
@@ -2603,6 +2648,9 @@ struct regulator_dev *regulator_register(struct regulator_desc *regulator_desc,
 out:
 	mutex_unlock(&regulator_list_mutex);
 	return rdev;
+
+unset_supplies:
+	unset_regulator_supplies(rdev);
 
 scrub:
 	device_unregister(&rdev->dev);
@@ -2676,6 +2724,47 @@ out:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(regulator_suspend_prepare);
+
+/**
+ * regulator_suspend_finish - resume regulators from system wide suspend
+ *
+ * Turn on regulators that might be turned off by regulator_suspend_prepare
+ * and that should be turned on according to the regulators properties.
+ */
+int regulator_suspend_finish(void)
+{
+	struct regulator_dev *rdev;
+	int ret = 0, error;
+
+	mutex_lock(&regulator_list_mutex);
+	list_for_each_entry(rdev, &regulator_list, list) {
+		struct regulator_ops *ops = rdev->desc->ops;
+
+		mutex_lock(&rdev->mutex);
+		if ((rdev->use_count > 0  || rdev->constraints->always_on) &&
+				ops->enable) {
+			error = ops->enable(rdev);
+			if (error)
+				ret = error;
+		} else {
+			if (!has_full_constraints)
+				goto unlock;
+			if (!ops->disable)
+				goto unlock;
+			if (ops->is_enabled && !ops->is_enabled(rdev))
+				goto unlock;
+
+			error = ops->disable(rdev);
+			if (error)
+				ret = error;
+		}
+unlock:
+		mutex_unlock(&rdev->mutex);
+	}
+	mutex_unlock(&regulator_list_mutex);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(regulator_suspend_finish);
 
 /**
  * regulator_has_full_constraints - the system has fully specified constraints

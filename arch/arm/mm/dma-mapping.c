@@ -149,6 +149,7 @@ static int __init consistent_init(void)
 {
 	int ret = 0;
 	pgd_t *pgd;
+	pud_t *pud;
 	pmd_t *pmd;
 	pte_t *pte;
 	int i = 0;
@@ -156,7 +157,15 @@ static int __init consistent_init(void)
 
 	do {
 		pgd = pgd_offset(&init_mm, base);
-		pmd = pmd_alloc(&init_mm, pgd, base);
+
+		pud = pud_alloc(&init_mm, pgd, base);
+		if (!pud) {
+			printk(KERN_ERR "%s: no pud tables\n", __func__);
+			ret = -ENOMEM;
+			break;
+		}
+
+		pmd = pmd_alloc(&init_mm, pud, base);
 		if (!pmd) {
 			printk(KERN_ERR "%s: no pmd tables\n", __func__);
 			ret = -ENOMEM;
@@ -420,22 +429,18 @@ EXPORT_SYMBOL(dma_free_coherent);
 void ___dma_single_cpu_to_dev(const void *kaddr, size_t size,
 	enum dma_data_direction dir)
 {
-#ifdef CONFIG_OUTER_CACHE
 	unsigned long paddr;
 
 	BUG_ON(!virt_addr_valid(kaddr) || !virt_addr_valid(kaddr + size - 1));
-#endif
 
 	dmac_map_area(kaddr, size, dir);
 
-#ifdef CONFIG_OUTER_CACHE
 	paddr = __pa(kaddr);
 	if (dir == DMA_FROM_DEVICE) {
 		outer_inv_range(paddr, paddr + size);
 	} else {
 		outer_clean_range(paddr, paddr + size);
 	}
-#endif
 	/* FIXME: non-speculating: flush on bidirectional mappings? */
 }
 EXPORT_SYMBOL(___dma_single_cpu_to_dev);
@@ -443,7 +448,6 @@ EXPORT_SYMBOL(___dma_single_cpu_to_dev);
 void ___dma_single_dev_to_cpu(const void *kaddr, size_t size,
 	enum dma_data_direction dir)
 {
-#ifdef CONFIG_OUTER_CACHE
 	BUG_ON(!virt_addr_valid(kaddr) || !virt_addr_valid(kaddr + size - 1));
 
 	/* FIXME: non-speculating: not required */
@@ -452,7 +456,7 @@ void ___dma_single_dev_to_cpu(const void *kaddr, size_t size,
 		unsigned long paddr = __pa(kaddr);
 		outer_inv_range(paddr, paddr + size);
 	}
-#endif
+
 	dmac_unmap_area(kaddr, size, dir);
 }
 EXPORT_SYMBOL(___dma_single_dev_to_cpu);

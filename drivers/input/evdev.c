@@ -23,7 +23,6 @@
 #include <linux/input.h>
 #include <linux/major.h>
 #include <linux/device.h>
-#include <linux/wakelock.h>
 #include "input-compat.h"
 
 struct evdev {
@@ -40,15 +39,13 @@ struct evdev {
 };
 
 struct evdev_client {
-	int head;
-	int tail;
+	unsigned int head;
+	unsigned int tail;
 	spinlock_t buffer_lock; /* protects access to buffer, head and tail */
-	struct wake_lock wake_lock;
-	char name[28];
 	struct fasync_struct *fasync;
 	struct evdev *evdev;
 	struct list_head node;
-	int bufsize;
+	unsigned int bufsize;
 	struct input_event buffer[];
 };
 
@@ -58,17 +55,25 @@ static DEFINE_MUTEX(evdev_table_mutex);
 static void evdev_pass_event(struct evdev_client *client,
 			     struct input_event *event)
 {
-	/*
-	 * Interrupts are disabled, just acquire the lock.
-	 * Make sure we don't leave with the client buffer
-	 * "empty" by having client->head == client->tail.
-	 */
+	/* Interrupts are disabled, just acquire the lock. */
 	spin_lock(&client->buffer_lock);
-	wake_lock_timeout(&client->wake_lock, 5 * HZ);
-	do {
-		client->buffer[client->head++] = *event;
-		client->head &= client->bufsize - 1;
-	} while (client->head == client->tail);
+
+	client->buffer[client->head++] = *event;
+	client->head &= client->bufsize - 1;
+
+	if (unlikely(client->head == client->tail)) {
+		/*
+		 * This effectively "drops" all unconsumed events, leaving
+		 * EV_SYN/SYN_DROPPED plus the newest event in the queue.
+		 */
+		client->tail = (client->head - 2) & (client->bufsize - 1);
+
+		client->buffer[client->tail].time = event->time;
+		client->buffer[client->tail].type = EV_SYN;
+		client->buffer[client->tail].code = SYN_DROPPED;
+		client->buffer[client->tail].value = 0;
+	}
+
 	spin_unlock(&client->buffer_lock);
 
 	if (event->type == EV_SYN)
@@ -84,11 +89,8 @@ static void evdev_event(struct input_handle *handle,
 	struct evdev *evdev = handle->private;
 	struct evdev_client *client;
 	struct input_event event;
-	struct timespec ts;
 
-	ktime_get_ts(&ts);
-	event.time.tv_sec = ts.tv_sec;
-	event.time.tv_usec = ts.tv_nsec / NSEC_PER_USEC;
+	do_gettimeofday(&event.time);
 	event.type = type;
 	event.code = code;
 	event.value = value;
@@ -249,7 +251,6 @@ static int evdev_release(struct inode *inode, struct file *file)
 	mutex_unlock(&evdev->mutex);
 
 	evdev_detach_client(evdev, client);
-	wake_lock_destroy(&client->wake_lock);
 	kfree(client);
 
 	evdev_close_device(evdev);
@@ -301,9 +302,6 @@ static int evdev_open(struct inode *inode, struct file *file)
 
 	client->bufsize = bufsize;
 	spin_lock_init(&client->buffer_lock);
-	snprintf(client->name, sizeof(client->name), "%s-%d",
-			dev_name(&evdev->dev), task_tgid_vnr(current));
-	wake_lock_init(&client->wake_lock, WAKE_LOCK_SUSPEND, client->name);
 	client->evdev = evdev;
 	evdev_attach_client(evdev, client);
 
@@ -318,7 +316,6 @@ static int evdev_open(struct inode *inode, struct file *file)
 
  err_free_client:
 	evdev_detach_client(evdev, client);
-	wake_lock_destroy(&client->wake_lock);
 	kfree(client);
  err_put_evdev:
 	put_device(&evdev->dev);
@@ -333,6 +330,9 @@ static ssize_t evdev_write(struct file *file, const char __user *buffer,
 	struct input_event event;
 	int retval;
 
+	if (count < input_event_size())
+		return -EINVAL;
+
 	retval = mutex_lock_interruptible(&evdev->mutex);
 	if (retval)
 		return retval;
@@ -342,17 +342,16 @@ static ssize_t evdev_write(struct file *file, const char __user *buffer,
 		goto out;
 	}
 
-	while (retval < count) {
-
+	do {
 		if (input_event_from_user(buffer + retval, &event)) {
 			retval = -EFAULT;
 			goto out;
 		}
+		retval += input_event_size();
 
 		input_inject_event(&evdev->handle,
 				   event.type, event.code, event.value);
-		retval += input_event_size();
-	}
+	} while (retval + input_event_size() <= count);
 
  out:
 	mutex_unlock(&evdev->mutex);
@@ -370,8 +369,6 @@ static int evdev_fetch_next_event(struct evdev_client *client,
 	if (have_event) {
 		*event = client->buffer[client->tail++];
 		client->tail &= client->bufsize - 1;
-		if (client->head == client->tail)
-			wake_unlock(&client->wake_lock);
 	}
 
 	spin_unlock_irq(&client->buffer_lock);

@@ -52,7 +52,7 @@
  */
 
 /*
- * The only reason to have several buffers is to accomodate assumptions
+ * The only reason to have several buffers is to accommodate assumptions
  * in line disciplines. They ask for empty space amount, receive our URB size,
  * and proceed to issue several 1-character writes, assuming they will fit.
  * The very first write takes a complete URB. Fortunately, this only happens
@@ -137,4 +137,3 @@ struct acm {
 #define SINGLE_RX_URB			2
 #define NO_CAP_LINE			4
 #define NOT_A_MODEM			8
-#define NO_DATA_INTERFACE		16

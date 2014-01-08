@@ -1238,6 +1238,7 @@ static int suspend(int vetoable)
 	dpm_suspend_noirq(PMSG_SUSPEND);
 
 	local_irq_disable();
+	sysdev_suspend(PMSG_SUSPEND);
 	syscore_suspend();
 
 	local_irq_enable();
@@ -1257,6 +1258,7 @@ static int suspend(int vetoable)
 	err = (err == APM_SUCCESS) ? 0 : -EIO;
 
 	syscore_resume();
+	sysdev_resume();
 	local_irq_enable();
 
 	dpm_resume_noirq(PMSG_RESUME);
@@ -1280,6 +1282,7 @@ static void standby(void)
 	dpm_suspend_noirq(PMSG_SUSPEND);
 
 	local_irq_disable();
+	sysdev_suspend(PMSG_SUSPEND);
 	syscore_suspend();
 	local_irq_enable();
 
@@ -1289,6 +1292,7 @@ static void standby(void)
 
 	local_irq_disable();
 	syscore_resume();
+	sysdev_resume();
 	local_irq_enable();
 
 	dpm_resume_noirq(PMSG_RESUME);

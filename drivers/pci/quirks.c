@@ -263,7 +263,7 @@ static void quirk_vialatency(struct pci_dev *dev)
 	 *	This happens to include the IDE controllers....
 	 *
 	 *	VIA only apply this fix when an SB Live! is present but under
-	 *	both Linux and Windows this isnt enough, and we have seen
+	 *	both Linux and Windows this isn't enough, and we have seen
 	 *	corruption without SB Live! but with things like 3 UDMA IDE
 	 *	controllers. So we ignore that bit of the VIA recommendation..
 	 */
@@ -2680,7 +2680,7 @@ DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_HINT, 0x0020, quirk_hotplug_bridge);
  * This is a quirk for the Ricoh MMC controller found as a part of
  * some mulifunction chips.
 
- * This is very similiar and based on the ricoh_mmc driver written by
+ * This is very similar and based on the ricoh_mmc driver written by
  * Philip Langdale. Thank you for these magic sequences.
  *
  * These chips implement the four main memory card controllers (SD, MMC, MS, xD)
@@ -2783,16 +2783,6 @@ static void vtd_mask_spec_errors(struct pci_dev *dev)
 DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_INTEL, 0x342e, vtd_mask_spec_errors);
 DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_INTEL, 0x3c28, vtd_mask_spec_errors);
 #endif
-
-static void __devinit fixup_ti816x_class(struct pci_dev* dev)
-{
-	/* TI 816x devices do not have class code set when in PCIe boot mode */
-	if (dev->class == PCI_CLASS_NOT_DEFINED) {
-		dev_info(&dev->dev, "Setting PCI class for 816x PCIe device\n");
-		dev->class = PCI_CLASS_MULTIMEDIA_VIDEO;
-	}
-}
-DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_TI, 0xb800, fixup_ti816x_class);
 
 static void pci_do_fixups(struct pci_dev *dev, struct pci_fixup *f,
 			  struct pci_fixup *end)

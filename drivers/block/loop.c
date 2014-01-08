@@ -540,17 +540,6 @@ out:
 	return 0;
 }
 
-/*
- * kick off io on the underlying address space
- */
-static void loop_unplug(struct request_queue *q)
-{
-	struct loop_device *lo = q->queuedata;
-
-	queue_flag_clear_unlocked(QUEUE_FLAG_PLUGGED, q);
-	blk_run_address_space(lo->lo_backing_file->f_mapping);
-}
-
 struct switch_request {
 	struct file *file;
 	struct completion wait;
@@ -917,7 +906,6 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	 */
 	blk_queue_make_request(lo->lo_queue, loop_make_request);
 	lo->lo_queue->queuedata = lo;
-	lo->lo_queue->unplug_fn = loop_unplug;
 
 	if (!(lo_flags & LO_FLAGS_READ_ONLY) && file->f_op->fsync)
 		blk_queue_flush(lo->lo_queue, REQ_FLUSH);
@@ -1019,7 +1007,6 @@ static int loop_clr_fd(struct loop_device *lo, struct block_device *bdev)
 
 	kthread_stop(lo->lo_thread);
 
-	lo->lo_queue->unplug_fn = NULL;
 	lo->lo_backing_file = NULL;
 
 	loop_release_xfer(lo);
@@ -1636,9 +1623,6 @@ out:
 
 static void loop_free(struct loop_device *lo)
 {
-	if (!lo->lo_queue->queue_lock)
-		lo->lo_queue->queue_lock = &lo->lo_queue->__queue_lock;
-
 	blk_cleanup_queue(lo->lo_queue);
 	put_disk(lo->lo_disk);
 	list_del(&lo->lo_list);
@@ -1674,7 +1658,7 @@ static struct kobject *loop_probe(dev_t dev, int *part, void *data)
 	struct kobject *kobj;
 
 	mutex_lock(&loop_devices_mutex);
-	lo = loop_init_one(MINOR(dev) >> part_shift);
+	lo = loop_init_one(dev & MINORMASK);
 	kobj = lo ? get_disk(lo->lo_disk) : ERR_PTR(-ENOMEM);
 	mutex_unlock(&loop_devices_mutex);
 
@@ -1707,18 +1691,15 @@ static int __init loop_init(void)
 	if (max_part > 0)
 		part_shift = fls(max_part);
 
-	if ((1UL << part_shift) > DISK_MAX_PARTS)
-		return -EINVAL;
-
 	if (max_loop > 1UL << (MINORBITS - part_shift))
 		return -EINVAL;
 
 	if (max_loop) {
 		nr = max_loop;
-		range = max_loop << part_shift;
+		range = max_loop;
 	} else {
 		nr = 8;
-		range = 1UL << MINORBITS;
+		range = 1UL << (MINORBITS - part_shift);
 	}
 
 	if (register_blkdev(LOOP_MAJOR, "loop"))
@@ -1757,7 +1738,7 @@ static void __exit loop_exit(void)
 	unsigned long range;
 	struct loop_device *lo, *next;
 
-	range = max_loop ? max_loop << part_shift : 1UL << MINORBITS;
+	range = max_loop ? max_loop :  1UL << (MINORBITS - part_shift);
 
 	list_for_each_entry_safe(lo, next, &loop_devices, lo_list)
 		loop_del_one(lo);

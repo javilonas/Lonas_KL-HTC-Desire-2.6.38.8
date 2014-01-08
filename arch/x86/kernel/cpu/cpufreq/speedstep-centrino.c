@@ -29,6 +29,9 @@
 #define PFX		"speedstep-centrino: "
 #define MAINTAINER	"cpufreq@vger.kernel.org"
 
+#define dprintk(msg...) \
+	cpufreq_debug_printk(CPUFREQ_DEBUG_DRIVER, "speedstep-centrino", msg)
+
 #define INTEL_MSR_RANGE	(0xffff)
 
 struct cpu_id
@@ -241,7 +244,7 @@ static int centrino_cpu_init_table(struct cpufreq_policy *policy)
 
 	if (model->cpu_id == NULL) {
 		/* No match at all */
-		pr_debug("no support for CPU model \"%s\": "
+		dprintk("no support for CPU model \"%s\": "
 		       "send /proc/cpuinfo to " MAINTAINER "\n",
 		       cpu->x86_model_id);
 		return -ENOENT;
@@ -249,15 +252,15 @@ static int centrino_cpu_init_table(struct cpufreq_policy *policy)
 
 	if (model->op_points == NULL) {
 		/* Matched a non-match */
-		pr_debug("no table support for CPU model \"%s\"\n",
+		dprintk("no table support for CPU model \"%s\"\n",
 		       cpu->x86_model_id);
-		pr_debug("try using the acpi-cpufreq driver\n");
+		dprintk("try using the acpi-cpufreq driver\n");
 		return -ENOENT;
 	}
 
 	per_cpu(centrino_model, policy->cpu) = model;
 
-	pr_debug("found \"%s\": max frequency: %dkHz\n",
+	dprintk("found \"%s\": max frequency: %dkHz\n",
 	       model->model_name, model->max_freq);
 
 	return 0;
@@ -366,7 +369,7 @@ static int centrino_cpu_init(struct cpufreq_policy *policy)
 		per_cpu(centrino_cpu, policy->cpu) = &cpu_ids[i];
 
 	if (!per_cpu(centrino_cpu, policy->cpu)) {
-		pr_debug("found unsupported CPU with "
+		dprintk("found unsupported CPU with "
 		"Enhanced SpeedStep: send /proc/cpuinfo to "
 		MAINTAINER "\n");
 		return -ENODEV;
@@ -382,7 +385,7 @@ static int centrino_cpu_init(struct cpufreq_policy *policy)
 
 	if (!(l & MSR_IA32_MISC_ENABLE_ENHANCED_SPEEDSTEP)) {
 		l |= MSR_IA32_MISC_ENABLE_ENHANCED_SPEEDSTEP;
-		pr_debug("trying to enable Enhanced SpeedStep (%x)\n", l);
+		dprintk("trying to enable Enhanced SpeedStep (%x)\n", l);
 		wrmsr(MSR_IA32_MISC_ENABLE, l, h);
 
 		/* check to see if it stuck */
@@ -399,7 +402,7 @@ static int centrino_cpu_init(struct cpufreq_policy *policy)
 						/* 10uS transition latency */
 	policy->cur = freq;
 
-	pr_debug("centrino_cpu_init: cur=%dkHz\n", policy->cur);
+	dprintk("centrino_cpu_init: cur=%dkHz\n", policy->cur);
 
 	ret = cpufreq_frequency_table_cpuinfo(policy,
 		per_cpu(centrino_model, policy->cpu)->op_points);
@@ -495,7 +498,7 @@ static int centrino_target (struct cpufreq_policy *policy,
 			good_cpu = j;
 
 		if (good_cpu >= nr_cpu_ids) {
-			pr_debug("couldn't limit to CPUs in this domain\n");
+			dprintk("couldn't limit to CPUs in this domain\n");
 			retval = -EAGAIN;
 			if (first_cpu) {
 				/* We haven't started the transition yet. */
@@ -509,7 +512,7 @@ static int centrino_target (struct cpufreq_policy *policy,
 		if (first_cpu) {
 			rdmsr_on_cpu(good_cpu, MSR_IA32_PERF_CTL, &oldmsr, &h);
 			if (msr == (oldmsr & 0xffff)) {
-				pr_debug("no change needed - msr was and needs "
+				dprintk("no change needed - msr was and needs "
 					"to be %x\n", oldmsr);
 				retval = 0;
 				goto out;
@@ -518,7 +521,7 @@ static int centrino_target (struct cpufreq_policy *policy,
 			freqs.old = extract_clock(oldmsr, cpu, 0);
 			freqs.new = extract_clock(msr, cpu, 0);
 
-			pr_debug("target=%dkHz old=%d new=%d msr=%04x\n",
+			dprintk("target=%dkHz old=%d new=%d msr=%04x\n",
 				target_freq, freqs.old, freqs.new, msr);
 
 			for_each_cpu(k, policy->cpus) {

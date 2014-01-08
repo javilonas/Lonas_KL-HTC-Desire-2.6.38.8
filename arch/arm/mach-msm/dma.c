@@ -1,8 +1,6 @@
 /* linux/arch/arm/mach-msm/dma.c
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2008 QUALCOMM Incorporated.
- * Copyright (c) 2008 QUALCOMM USA, INC.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -20,7 +18,6 @@
 #include <linux/io.h>
 #include <linux/interrupt.h>
 #include <linux/completion.h>
-#include <linux/module.h>
 #include <mach/dma.h>
 
 #define MSM_DMOV_CHANNEL_COUNT 16
@@ -54,9 +51,8 @@ void msm_dmov_stop_cmd(unsigned id, struct msm_dmov_cmd *cmd, int graceful)
 {
 	writel((graceful << 31), DMOV_FLUSH0(id));
 }
-EXPORT_SYMBOL(msm_dmov_stop_cmd);
 
-void msm_dmov_enqueue_cmd_ext(unsigned id, struct msm_dmov_cmd *cmd)
+void msm_dmov_enqueue_cmd(unsigned id, struct msm_dmov_cmd *cmd)
 {
 	unsigned long irq_flags;
 	unsigned int status;
@@ -93,29 +89,6 @@ void msm_dmov_enqueue_cmd_ext(unsigned id, struct msm_dmov_cmd *cmd)
 	}
 	spin_unlock_irqrestore(&msm_dmov_lock, irq_flags);
 }
-EXPORT_SYMBOL(msm_dmov_enqueue_cmd_ext);
-
-void msm_dmov_enqueue_cmd(unsigned id, struct msm_dmov_cmd *cmd)
-{
-	/* Disable callback function (for backwards compatibility) */
-	cmd->execute_func = NULL;
-
-	msm_dmov_enqueue_cmd_ext(id, cmd);
-}
-EXPORT_SYMBOL(msm_dmov_enqueue_cmd);
-
-void msm_dmov_flush(unsigned int id)
-{
-	unsigned long irq_flags;
-	spin_lock_irqsave(&msm_dmov_lock, irq_flags);
-	/* XXX not checking if flush cmd sent already */
-	if (!list_empty(&active_commands[id])) {
-		PRINT_IO("msm_dmov_flush(%d), send flush cmd\n", id);
-		writel(DMOV_FLUSH_TYPE, DMOV_FLUSH0(id));
-	}
-	spin_unlock_irqrestore(&msm_dmov_lock, irq_flags);
-}
-EXPORT_SYMBOL(msm_dmov_flush);
 
 struct msm_dmov_exec_cmdptr_cmd {
 	struct msm_dmov_cmd dmov_cmd;
@@ -151,7 +124,7 @@ int msm_dmov_exec_cmd(unsigned id, unsigned int cmdptr)
 	init_completion(&cmd.complete);
 
 	msm_dmov_enqueue_cmd(id, &cmd.dmov_cmd);
-	wait_for_completion_io(&cmd.complete);
+	wait_for_completion(&cmd.complete);
 
 	if (cmd.result != 0x80000002) {
 		PRINT_ERROR("dmov_exec_cmdptr(%d): ERROR, result: %x\n", id, cmd.result);
@@ -295,3 +268,4 @@ static int __init msm_init_datamover(void)
 }
 
 arch_initcall(msm_init_datamover);
+

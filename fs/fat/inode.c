@@ -236,7 +236,6 @@ static const struct address_space_operations fat_aops = {
 	.readpages	= fat_readpages,
 	.writepage	= fat_writepage,
 	.writepages	= fat_writepages,
-	.sync_page	= block_sync_page,
 	.write_begin	= fat_write_begin,
 	.write_end	= fat_write_end,
 	.direct_IO	= fat_direct_IO,
@@ -652,7 +651,7 @@ retry:
 	spin_unlock(&sbi->inode_hash_lock);
 	mark_buffer_dirty(bh);
 	err = 0;
-	if (1 /* XXX: fix fsync and use wait */)
+	if (wait)
 		err = sync_dirty_buffer(bh);
 	brelse(bh);
 	return err;
@@ -757,8 +756,10 @@ fat_encode_fh(struct dentry *de, __u32 *fh, int *lenp, int connectable)
 	struct inode *inode =  de->d_inode;
 	u32 ipos_h, ipos_m, ipos_l;
 
-	if (len < 5)
+	if (len < 5) {
+		*lenp = 5;
 		return 255; /* no room */
+	}
 
 	ipos_h = MSDOS_I(inode)->i_pos >> 8;
 	ipos_m = (MSDOS_I(inode)->i_pos & 0xf0) << 24;
@@ -1244,7 +1245,6 @@ int fat_fill_super(struct super_block *sb, void *data, int silent,
 	struct inode *root_inode = NULL, *fat_inode = NULL;
 	struct buffer_head *bh;
 	struct fat_boot_sector *b;
-	struct fat_boot_bsx *bsx;
 	struct msdos_sb_info *sbi;
 	u16 logical_sector_size;
 	u32 total_sectors, total_clusters, fat_clusters, rootdir_sectors;
@@ -1391,8 +1391,6 @@ int fat_fill_super(struct super_block *sb, void *data, int silent,
 			goto out_fail;
 		}
 
-		bsx = (struct fat_boot_bsx *)(bh->b_data + FAT32_BSX_OFFSET);
-
 		fsinfo = (struct fat_boot_fsinfo *)fsinfo_bh->b_data;
 		if (!IS_FSINFO(fsinfo)) {
 			printk(KERN_WARNING "FAT: Invalid FSINFO signature: "
@@ -1408,13 +1406,7 @@ int fat_fill_super(struct super_block *sb, void *data, int silent,
 		}
 
 		brelse(fsinfo_bh);
-	} else {
-		bsx = (struct fat_boot_bsx *)(bh->b_data + FAT16_BSX_OFFSET);
 	}
-
-	/* interpret volume ID as a little endian 32 bit integer */
-	sbi->vol_id = (((u32)bsx->vol_id[0]) | ((u32)bsx->vol_id[1] << 8) |
-		((u32)bsx->vol_id[2] << 16) | ((u32)bsx->vol_id[3] << 24));
 
 	sbi->dir_per_block = sb->s_blocksize / sizeof(struct msdos_dir_entry);
 	sbi->dir_per_block_bits = ffs(sbi->dir_per_block) - 1;
