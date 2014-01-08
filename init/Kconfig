@@ -69,11 +69,6 @@ config BROKEN_ON_SMP
 	depends on BROKEN || !SMP
 	default y
 
-config LOCK_KERNEL
-	bool
-	depends on (SMP || PREEMPT) && BKL
-	default y
-
 config INIT_ENV_ARG_LIMIT
 	int
 	default 32 if !UML
@@ -286,6 +281,18 @@ config BSD_PROCESS_ACCT_V3
 	  with previous v0/v1/v2 file formats, so you will need updated tools
 	  for processing it. A preliminary version of these tools is available
 	  at <http://www.gnu.org/software/acct/>.
+
+config FHANDLE
+	bool "open by fhandle syscalls"
+	select EXPORTFS
+	help
+	  If you say Y here, a user level program will be able to map
+	  file names to handle and then later use the handle for
+	  different file system operations. This is useful in implementing
+	  userspace file servers, which now track files using handles instead
+	  of names. The handle would remain the same even if file names
+	  get renamed. Enables open_by_handle_at(2) and name_to_handle_at(2)
+	  syscalls.
 
 config TASKSTATS
 	bool "Export task/process statistics through netlink (EXPERIMENTAL)"
@@ -683,6 +690,16 @@ config CGROUP_MEM_RES_CTLR_SWAP_ENABLED
 	  select this option (if, for some reason, they need to disable it
 	  then noswapaccount does the trick).
 
+config CGROUP_PERF
+	bool "Enable perf_event per-cpu per-container group (cgroup) monitoring"
+	depends on PERF_EVENTS && CGROUPS
+	help
+	  This option extends the per-cpu mode to restrict monitoring to
+	  threads which belong to the cgroup specified and run on the
+	  designated cpu.
+
+	  Say N if unsure.
+
 menuconfig CGROUP_SCHED
 	bool "Group CPU scheduler"
 	depends on EXPERIMENTAL
@@ -814,7 +831,7 @@ config MM_OWNER
 	bool
 
 config SYSFS_DEPRECATED
-	bool "enable deprecated sysfs features to support old userspace tools"
+	bool "Enable deprecated sysfs features to support old userspace tools"
 	depends on SYSFS
 	default n
 	help
@@ -837,7 +854,7 @@ config SYSFS_DEPRECATED
 	  need to say Y here.
 
 config SYSFS_DEPRECATED_V2
-	bool "enabled deprecated sysfs features by default"
+	bool "Enable deprecated sysfs features by default"
 	default n
 	depends on SYSFS
 	depends on SYSFS_DEPRECATED
@@ -899,12 +916,6 @@ config SYSCTL
 config ANON_INODES
 	bool
 
-config PANIC_TIMEOUT
-	int "Default panic timeout"
-	default 0
-	help
-	  Set default panic timeout.
-
 menuconfig EXPERT
 	bool "Configure standard kernel features (expert users)"
 	help
@@ -912,14 +923,6 @@ menuconfig EXPERT
           to be disabled or tweaked. This is for specialized
           environments which can tolerate a "non-standard" kernel.
           Only use this if you really know what you are doing.
-
-config EMBEDDED
-	bool "Embedded system"
-	select EXPERT
-	help
-	  This option should be enabled if compiling the kernel for
-	  an embedded system so certain expert options are available
-	  for configuration.
 
 config UID16
 	bool "Enable 16-bit UID system calls" if EXPERT
@@ -1085,15 +1088,6 @@ config SHMEM
 	  option replaces shmem and tmpfs with the much simpler ramfs code,
 	  which may be appropriate on small systems without swap.
 
-config ASHMEM
-	bool "Enable the Anonymous Shared Memory Subsystem"
-	default n
-	depends on SHMEM || TINY_SHMEM
-	help
-	  The ashmem subsystem is a new shared memory allocator, similar to
-	  POSIX SHM but with different behavior and sporting a simpler
-	  file-based API.
-
 config AIO
 	bool "Enable AIO support" if EXPERT
 	default y
@@ -1101,6 +1095,14 @@ config AIO
 	  This option enables POSIX asynchronous I/O which may by used
           by some high performance threaded applications. Disabling
           this option saves about 7k.
+
+config EMBEDDED
+	bool "Embedded system"
+	select EXPERT
+	help
+	  This option should be enabled if compiling the kernel for
+	  an embedded system so certain expert options are available
+	  for configuration.
 
 config HAVE_PERF_EVENTS
 	bool
@@ -1224,7 +1226,6 @@ config SLAB
 	  per cpu and per node queues.
 
 config SLUB
-	depends on BROKEN || NUMA || !DISCONTIGMEM
 	bool "SLUB (Unqueued Allocator)"
 	help
 	   SLUB is a slab allocator that minimizes cache line usage

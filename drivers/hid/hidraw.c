@@ -91,7 +91,7 @@ static ssize_t hidraw_read(struct file *file, char __user *buffer, size_t count,
 			ret = -EFAULT;
 			goto out;
 		}
-		ret += len;
+		ret = len;
 
 		kfree(list->buffer[list->tail].value);
 		list->tail = (list->tail + 1) & (HIDRAW_BUFFER_SIZE - 1);
@@ -522,11 +522,11 @@ void hidraw_disconnect(struct hid_device *hid)
 
 	hidraw->exist = 0;
 
+	device_destroy(hidraw_class, MKDEV(hidraw_major, hidraw->minor));
+
 	mutex_lock(&minors_lock);
 	hidraw_table[hidraw->minor] = NULL;
 	mutex_unlock(&minors_lock);
-
-	device_destroy(hidraw_class, MKDEV(hidraw_major, hidraw->minor));
 
 	if (hidraw->open) {
 		hid_hw_close(hid);

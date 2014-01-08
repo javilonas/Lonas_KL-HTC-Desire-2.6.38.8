@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2003 Patrick Mochel
  * Copyright (c) 2003 Open Source Development Lab
- *
+ * 
  * This file is released under the GPLv2
  *
  */
@@ -16,9 +16,6 @@
 #include "power.h"
 
 DEFINE_MUTEX(pm_mutex);
-
-unsigned int pm_flags;
-EXPORT_SYMBOL(pm_flags);
 
 #ifdef CONFIG_PM_SLEEP
 
@@ -144,7 +141,7 @@ struct kobject *power_kobj;
  *	'standby' (Power-On Suspend), 'mem' (Suspend-to-RAM), and
  *	'disk' (Suspend-to-Disk).
  *
- *	store() accepts one of those strings, translates it into the
+ *	store() accepts one of those strings, translates it into the 
  *	proper enumerated value, and initiates a suspend transition.
  */
 static ssize_t state_show(struct kobject *kobj, struct kobj_attribute *attr,
@@ -173,11 +170,7 @@ static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
 			   const char *buf, size_t n)
 {
 #ifdef CONFIG_SUSPEND
-#ifdef CONFIG_EARLYSUSPEND
-	suspend_state_t state = PM_SUSPEND_ON;
-#else
 	suspend_state_t state = PM_SUSPEND_STANDBY;
-#endif
 	const char * const *s;
 #endif
 	char *p;
@@ -199,14 +192,7 @@ static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
 			break;
 	}
 	if (state < PM_SUSPEND_MAX && *s)
-#ifdef CONFIG_EARLYSUSPEND
-		if (state == PM_SUSPEND_ON || valid_state(state)) {
-			error = 0;
-			request_suspend_state(state);
-		}
-#else
 		error = enter_state(state);
-#endif
 #endif
 
  Exit:
@@ -238,7 +224,7 @@ power_attr(state);
  * writing to 'state'.  It first should read from 'wakeup_count' and store
  * the read value.  Then, after carrying out its own preparations for the system
  * transition to a sleep state, it should write the stored value to
- * 'wakeup_count'.  If that fails, at least one wakeup event has occured since
+ * 'wakeup_count'.  If that fails, at least one wakeup event has occurred since
  * 'wakeup_count' was read and 'state' should not be written to.  Otherwise, it
  * is allowed to write to 'state', but the transition will be aborted if there
  * are any wakeup events detected after 'wakeup_count' was written to.
@@ -311,51 +297,6 @@ power_attr(pm_trace_dev_match);
 
 #endif /* CONFIG_PM_TRACE */
 
-#ifdef CONFIG_USER_WAKELOCK
-power_attr(wake_lock);
-power_attr(wake_unlock);
-#endif
-
-#ifdef CONFIG_HTC_ONMODE_CHARGING
-static ssize_t state_onchg_show(struct kobject *kobj, struct kobj_attribute *attr,
-           char *buf)
-{
-  char *s = buf;
-  if (get_onchg_state())
-    s += sprintf(s, "chgoff ");
-  else
-    s += sprintf(s, "chgon ");
-
-  if (s != buf)
-    /* convert the last space to a newline */
-    *(s-1) = '\n';
-
-  return (s - buf);
-}
-
-static ssize_t
-state_onchg_store(struct kobject *kobj, struct kobj_attribute *attr,
-         const char *buf, size_t n)
-{
-  char *p;
-  int len;
-
-  p = memchr(buf, '\n', n);
-  len = p ? p - buf : n;
-
-  if (len == 5 || len == 6 || len == 7) {
-    if (!strncmp(buf, "chgon", len))
-      request_onchg_state(1);
-    else if (!strncmp(buf, "chgoff", len))
-      request_onchg_state(0);
-  }
-
-  return 0;
-}
-
-power_attr(state_onchg);
-#endif
-
 static struct attribute * g[] = {
 	&state_attr.attr,
 #ifdef CONFIG_PM_TRACE
@@ -367,13 +308,6 @@ static struct attribute * g[] = {
 	&wakeup_count_attr.attr,
 #ifdef CONFIG_PM_DEBUG
 	&pm_test_attr.attr,
-#endif
-#ifdef CONFIG_USER_WAKELOCK
-	&wake_lock_attr.attr,
-	&wake_unlock_attr.attr,
-#endif
-#ifdef CONFIG_HTC_ONMODE_CHARGING
-  &state_onchg_attr.attr,
 #endif
 #endif
 	NULL,

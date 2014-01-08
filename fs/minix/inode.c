@@ -399,7 +399,6 @@ static sector_t minix_bmap(struct address_space *mapping, sector_t block)
 static const struct address_space_operations minix_aops = {
 	.readpage = minix_readpage,
 	.writepage = minix_writepage,
-	.sync_page = block_sync_page,
 	.write_begin = minix_write_begin,
 	.write_end = generic_write_end,
 	.bmap = minix_bmap
@@ -583,7 +582,7 @@ static int minix_write_inode(struct inode *inode, struct writeback_control *wbc)
 		bh = V2_minix_update_inode(inode);
 	if (!bh)
 		return -EIO;
-	if (1 /* XXX: fix fsync and use wbc->sync_mode == WB_SYNC_ALL */ && buffer_dirty(bh)) {
+	if (wbc->sync_mode == WB_SYNC_ALL && buffer_dirty(bh)) {
 		sync_dirty_buffer(bh);
 		if (buffer_req(bh) && !buffer_uptodate(bh)) {
 			printk("IO error syncing minix inode [%s:%08lx]\n",

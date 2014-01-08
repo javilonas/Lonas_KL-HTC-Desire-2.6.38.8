@@ -9,10 +9,7 @@
  */
 #include <linux/module.h>
 #include <linux/init.h>
-#include <linux/notifier.h>
-#include <linux/cpu.h>
 #include <linux/sysdev.h>
-#include <linux/syscore_ops.h>
 
 #include <asm/leds.h>
 
@@ -72,54 +69,34 @@ static ssize_t leds_store(struct sys_device *dev,
 
 static SYSDEV_ATTR(event, 0200, NULL, leds_store);
 
-static struct sysdev_class leds_sysclass = {
-	.name		= "leds",
-};
-
-static struct sys_device leds_device = {
-	.id		= 0,
-	.cls		= &leds_sysclass,
-};
-
-static int leds_suspend(void)
+static int leds_suspend(struct sys_device *dev, pm_message_t state)
 {
 	leds_event(led_stop);
 	return 0;
 }
 
-static void leds_resume(void)
+static int leds_resume(struct sys_device *dev)
 {
 	leds_event(led_start);
+	return 0;
 }
 
-static void leds_shutdown(void)
+static int leds_shutdown(struct sys_device *dev)
 {
 	leds_event(led_halted);
+	return 0;
 }
 
-static struct syscore_ops leds_syscore_ops = {
+static struct sysdev_class leds_sysclass = {
+	.name		= "leds",
 	.shutdown	= leds_shutdown,
 	.suspend	= leds_suspend,
 	.resume		= leds_resume,
 };
 
-static int leds_idle_notifier(struct notifier_block *nb, unsigned long val,
-                                void *data)
-{
-	switch (val) {
-	case IDLE_START:
-		leds_event(led_idle_start);
-		break;
-	case IDLE_END:
-		leds_event(led_idle_end);
-		break;
-	}
-
-	return 0;
-}
-
-static struct notifier_block leds_idle_nb = {
-	.notifier_call = leds_idle_notifier,
+static struct sys_device leds_device = {
+	.id		= 0,
+	.cls		= &leds_sysclass,
 };
 
 static int __init leds_init(void)
@@ -130,12 +107,6 @@ static int __init leds_init(void)
 		ret = sysdev_register(&leds_device);
 	if (ret == 0)
 		ret = sysdev_create_file(&leds_device, &attr_event);
-
-	if (ret == 0) {
-		register_syscore_ops(&leds_syscore_ops);
-		idle_notifier_register(&leds_idle_nb);
-	}
-
 	return ret;
 }
 

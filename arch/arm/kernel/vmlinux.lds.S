@@ -7,9 +7,6 @@
 #include <asm/thread_info.h>
 #include <asm/memory.h>
 #include <asm/page.h>
-#ifdef CONFIG_STRICT_MEMORY_RWX
-#include <asm/pgtable.h>
-#endif
 	
 #define PROC_INFO							\
 	VMLINUX_SYMBOL(__proc_info_begin) = .;				\
@@ -67,6 +64,10 @@ SECTIONS
 		__smpalt_end = .;
 #endif
 
+		__pv_table_begin = .;
+			*(.pv_table)
+		__pv_table_end = .;
+
 		INIT_SETUP(16)
 
 		INIT_CALLS
@@ -81,7 +82,7 @@ SECTIONS
 #endif
 	}
 
-	PERCPU(PAGE_SIZE)
+	PERCPU(32, PAGE_SIZE)
 
 #ifndef CONFIG_XIP_KERNEL
 	. = ALIGN(PAGE_SIZE);
@@ -107,9 +108,6 @@ SECTIONS
 #endif
 	}
 
-#ifdef CONFIG_STRICT_MEMORY_RWX
-	. = ALIGN(1<<SECTION_SHIFT);
-#endif
 	.text : {			/* Real text segment		*/
 		_text = .;		/* Text and read-only data	*/
 			__exception_text_start = .;
@@ -132,9 +130,6 @@ SECTIONS
 		*(.got)			/* Global offset table		*/
 			ARM_CPU_KEEP(PROC_INFO)
 	}
-#ifdef CONFIG_STRICT_MEMORY_RWX
-	. = ALIGN(1<<SECTION_SHIFT);
-#endif
 
 	RO_DATA(PAGE_SIZE)
 
@@ -161,11 +156,7 @@ SECTIONS
 	__data_loc = ALIGN(4);		/* location in binary */
 	. = PAGE_OFFSET + TEXT_OFFSET;
 #else
-#ifdef CONFIG_STRICT_MEMORY_RWX
-	. = ALIGN(1<<SECTION_SHIFT);
-#else
 	. = ALIGN(THREAD_SIZE);
-#endif
 	__data_loc = .;
 #endif
 

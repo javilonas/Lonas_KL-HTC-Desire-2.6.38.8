@@ -123,7 +123,7 @@ int jfs_commit_inode(struct inode *inode, int wait)
 
 int jfs_write_inode(struct inode *inode, struct writeback_control *wbc)
 {
-	int wait = 1; /* XXX fix fsync and use wbc->sync_mode == WB_SYNC_ALL; */
+	int wait = wbc->sync_mode == WB_SYNC_ALL;
 
 	if (test_cflag(COMMIT_Nolink, inode))
 		return 0;
@@ -352,7 +352,6 @@ const struct address_space_operations jfs_aops = {
 	.readpages	= jfs_readpages,
 	.writepage	= jfs_writepage,
 	.writepages	= jfs_writepages,
-	.sync_page	= block_sync_page,
 	.write_begin	= jfs_write_begin,
 	.write_end	= nobh_write_end,
 	.bmap		= jfs_bmap,

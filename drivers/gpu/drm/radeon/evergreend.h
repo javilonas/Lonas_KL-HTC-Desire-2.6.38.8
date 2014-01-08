@@ -202,6 +202,7 @@
 #define		BURSTLENGTH_SHIFT				9
 #define		BURSTLENGTH_MASK				0x00000200
 #define		CHANSIZE_OVERRIDE				(1 << 11)
+#define	FUS_MC_ARB_RAMCFG				0x2768
 #define	MC_VM_AGP_TOP					0x2028
 #define	MC_VM_AGP_BOT					0x202C
 #define	MC_VM_AGP_BASE					0x2030
@@ -459,7 +460,7 @@
 #define IH_RB_WPTR_ADDR_LO                                0x3e14
 #define IH_CNTL                                           0x3e18
 #       define ENABLE_INTR                                (1 << 0)
-#       define IH_MC_SWAP(x)                              ((x) << 2)
+#       define IH_MC_SWAP(x)                              ((x) << 1)
 #       define IH_MC_SWAP_NONE                            0
 #       define IH_MC_SWAP_16BIT                           1
 #       define IH_MC_SWAP_32BIT                           2
@@ -540,7 +541,7 @@
 #       define LB_D5_VBLANK_INTERRUPT                   (1 << 3)
 #       define DC_HPD5_INTERRUPT                        (1 << 17)
 #       define DC_HPD5_RX_INTERRUPT                     (1 << 18)
-#define DISP_INTERRUPT_STATUS_CONTINUE5                 0x6050
+#define DISP_INTERRUPT_STATUS_CONTINUE5                 0x6150
 #       define LB_D6_VLINE_INTERRUPT                    (1 << 2)
 #       define LB_D6_VBLANK_INTERRUPT                   (1 << 3)
 #       define DC_HPD6_INTERRUPT                        (1 << 17)
@@ -762,13 +763,21 @@
 
 #define SQ_CONST_MEM_BASE				0x8df8
 
+#define SQ_ESGS_RING_BASE				0x8c40
 #define SQ_ESGS_RING_SIZE				0x8c44
+#define SQ_GSVS_RING_BASE				0x8c48
 #define SQ_GSVS_RING_SIZE				0x8c4c
+#define SQ_ESTMP_RING_BASE				0x8c50
 #define SQ_ESTMP_RING_SIZE				0x8c54
+#define SQ_GSTMP_RING_BASE				0x8c58
 #define SQ_GSTMP_RING_SIZE				0x8c5c
+#define SQ_VSTMP_RING_BASE				0x8c60
 #define SQ_VSTMP_RING_SIZE				0x8c64
+#define SQ_PSTMP_RING_BASE				0x8c68
 #define SQ_PSTMP_RING_SIZE				0x8c6c
+#define SQ_LSTMP_RING_BASE				0x8e10
 #define SQ_LSTMP_RING_SIZE				0x8e14
+#define SQ_HSTMP_RING_BASE				0x8e18
 #define SQ_HSTMP_RING_SIZE				0x8e1c
 #define VGT_TF_RING_SIZE				0x8988
 
@@ -1100,5 +1109,14 @@
 #define SQ_TEX_RESOURCE_WORD6_0                         0x30018
 #define SQ_TEX_RESOURCE_WORD7_0                         0x3001c
 
+/* cayman 3D regs */
+#define CAYMAN_VGT_OFFCHIP_LDS_BASE			0x89B0
+#define CAYMAN_DB_EQAA					0x28804
+#define CAYMAN_DB_DEPTH_INFO				0x2803C
+#define CAYMAN_PA_SC_AA_CONFIG				0x28BE0
+#define         CAYMAN_MSAA_NUM_SAMPLES_SHIFT           0
+#define         CAYMAN_MSAA_NUM_SAMPLES_MASK            0x7
+/* cayman packet3 addition */
+#define	CAYMAN_PACKET3_DEALLOC_STATE			0x14
 
 #endif

@@ -82,6 +82,7 @@ enum ieee80211_sta_info_flags {
  * @state: session state (see above)
  * @stop_initiator: initiator of a session stop
  * @tx_stop: TX DelBA frame when stopping
+ * @buf_size: reorder buffer size at receiver
  *
  * This structure's lifetime is managed by RCU, assignments to
  * the array holding it must hold the aggregation mutex.
@@ -101,6 +102,7 @@ struct tid_ampdu_tx {
 	u8 dialog_token;
 	u8 stop_initiator;
 	bool tx_stop;
+	u8 buf_size;
 };
 
 /**
@@ -171,7 +173,7 @@ struct sta_ampdu_mlme {
 /**
  * enum plink_state - state of a mesh peer link finite state machine
  *
- * @PLINK_LISTEN: initial state, considered the implicit state of non existant
+ * @PLINK_LISTEN: initial state, considered the implicit state of non existent
  * 	mesh peer links
  * @PLINK_OPN_SNT: mesh plink open frame has been sent to this mesh peer
  * @PLINK_OPN_RCVD: mesh plink open frame has been received from this mesh peer
@@ -224,7 +226,6 @@ enum plink_state {
  * @rx_bytes: Number of bytes received from this STA
  * @wep_weak_iv_count: number of weak WEP IVs received from this station
  * @last_rx: time (in jiffies) when last frame was received from this STA
- * @last_connected: time (in seconds) when a station got connected
  * @num_duplicates: number of duplicate frames received from this STA
  * @rx_fragments: number of received MPDUs
  * @rx_dropped: number of dropped MPDUs from this STA
@@ -294,7 +295,6 @@ struct sta_info {
 	unsigned long rx_packets, rx_bytes;
 	unsigned long wep_weak_iv_count;
 	unsigned long last_rx;
-	long last_connected;
 	unsigned long num_duplicates;
 	unsigned long rx_fragments;
 	unsigned long rx_dropped;

@@ -112,10 +112,9 @@ void __ref put_page_bootmem(struct page *page)
 
 static void register_page_bootmem_info_section(unsigned long start_pfn)
 {
-	unsigned long *usemap, mapsize, page_mapsize, section_nr, i, j;
+	unsigned long *usemap, mapsize, section_nr, i;
 	struct mem_section *ms;
-	struct page *page, *memmap, *page_page;
-	int memmap_page_valid;
+	struct page *page, *memmap;
 
 	if (!pfn_valid(start_pfn))
 		return;
@@ -134,21 +133,9 @@ static void register_page_bootmem_info_section(unsigned long start_pfn)
 	mapsize = sizeof(struct page) * PAGES_PER_SECTION;
 	mapsize = PAGE_ALIGN(mapsize) >> PAGE_SHIFT;
 
-	page_mapsize = PAGE_SIZE/sizeof(struct page);
-
-	/* remember memmap's page, except those that reference only holes */
-	for (i = 0; i < mapsize; i++, page++) {
-		memmap_page_valid = 0;
-		page_page = __va(page_to_pfn(page) << PAGE_SHIFT);
-		for (j = 0; j < page_mapsize; j++, page_page++) {
-			if (early_pfn_valid(page_to_pfn(page_page))) {
-				memmap_page_valid = 1;
-				break;
-			}
-		}
-		if (memmap_page_valid)
-			get_page_bootmem(section_nr, page, SECTION_INFO);
-	}
+	/* remember memmap's page */
+	for (i = 0; i < mapsize; i++, page++)
+		get_page_bootmem(section_nr, page, SECTION_INFO);
 
 	usemap = __nr_to_section(section_nr)->pageblock_flags;
 	page = virt_to_page(usemap);
@@ -388,7 +375,7 @@ void online_page(struct page *page)
 #endif
 
 #ifdef CONFIG_FLATMEM
-	max_mapnr = max(page_to_pfn(page), max_mapnr);
+	max_mapnr = max(pfn, max_mapnr);
 #endif
 
 	ClearPageReserved(page);
@@ -531,7 +518,7 @@ int mem_online_node(int nid)
 
 	lock_memory_hotplug();
 	pgdat = hotadd_new_pgdat(nid, 0);
-	if (pgdat) {
+	if (!pgdat) {
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -603,54 +590,6 @@ out:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(add_memory);
-
-int __ref physical_remove_memory(u64 start, u64 size)
-{
-	int ret;
-	struct resource *res, *res_old;
-	res = kzalloc(sizeof(struct resource), GFP_KERNEL);
-	BUG_ON(!res);
-
-	ret = arch_physical_remove_memory(start, size);
-	if (!ret) {
-		kfree(res);
-		return 0;
-	}
-
-	res->name = "System RAM";
-	res->start = start;
-	res->end = start + size - 1;
-	res->flags = IORESOURCE_MEM | IORESOURCE_BUSY;
-
-	res_old = locate_resource(&iomem_resource, res);
-	if (res_old) {
-		release_resource(res_old);
-		if (PageSlab(virt_to_head_page(res_old)))
-			kfree(res_old);
-	}
-	kfree(res);
-
-	return ret;
-}
-EXPORT_SYMBOL_GPL(physical_remove_memory);
-
-int __ref physical_active_memory(u64 start, u64 size)
-{
-	int ret;
-
-	ret = arch_physical_active_memory(start, size);
-	return ret;
-}
-EXPORT_SYMBOL_GPL(physical_active_memory);
-
-int __ref physical_low_power_memory(u64 start, u64 size)
-{
-	int ret;
-
-	ret = arch_physical_low_power_memory(start, size);
-	return ret;
-}
-EXPORT_SYMBOL_GPL(physical_low_power_memory);
 
 #ifdef CONFIG_MEMORY_HOTREMOVE
 /*
@@ -785,7 +724,7 @@ do_migrate_range(unsigned long start_pfn, unsigned long end_pfn)
 			       pfn);
 			dump_page(page);
 #endif
-			/* Becasue we don't have big zone->lock. we should
+			/* Because we don't have big zone->lock. we should
 			   check this again here. */
 			if (page_count(page)) {
 				not_managed++;
@@ -988,7 +927,6 @@ int remove_memory(u64 start, u64 size)
 	end_pfn = start_pfn + PFN_DOWN(size);
 	return offline_pages(start_pfn, end_pfn, 120 * HZ);
 }
-
 #else
 int remove_memory(u64 start, u64 size)
 {

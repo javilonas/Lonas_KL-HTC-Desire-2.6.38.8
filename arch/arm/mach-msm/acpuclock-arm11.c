@@ -95,8 +95,6 @@ struct clkctl_acpu_speed {
 	short		up;
 };
 
-static unsigned long max_axi_rate;
-
 /*
  * ACPU speed table. Complete table is shown but certain speeds are commented
  * out to optimized speed switching. Initialize loops_per_jiffy to 0.
@@ -178,12 +176,11 @@ static int pc_pll_request(unsigned id, unsigned on)
  * ARM11 'owned' clock control
  *---------------------------------------------------------------------------*/
 
-unsigned long acpuclk_power_collapse(int from_idle) {
+unsigned long acpuclk_power_collapse(void) {
 	int ret = acpuclk_get_rate();
 	ret *= 1000;
 	if (ret > drv_state.power_collapse_khz)
-		acpuclk_set_rate(drv_state.power_collapse_khz,
-			(from_idle ? SETRATE_PC_IDLE : SETRATE_PC));
+		acpuclk_set_rate(drv_state.power_collapse_khz, 1);
 	return ret;
 }
 
@@ -196,7 +193,7 @@ unsigned long acpuclk_wait_for_irq(void) {
 	int ret = acpuclk_get_rate();
 	ret *= 1000;
 	if (ret > drv_state.wait_for_irq_khz)
-		acpuclk_set_rate(drv_state.wait_for_irq_khz, SETRATE_SWFI);
+		acpuclk_set_rate(drv_state.wait_for_irq_khz, 1);
 	return ret;
 }
 
@@ -293,7 +290,7 @@ static void acpuclk_set_div(const struct clkctl_acpu_speed *hunt_s) {
 	}
 }
 
-int acpuclk_set_rate(unsigned long rate, enum setrate_reason reason)
+int acpuclk_set_rate(unsigned long rate, int for_power_collapse)
 {
 	uint32_t reg_clkctl;
 	struct clkctl_acpu_speed *cur_s, *tgt_s, *strt_s;
@@ -318,7 +315,7 @@ int acpuclk_set_rate(unsigned long rate, enum setrate_reason reason)
 		return -EINVAL;
 
 	/* Choose the highest speed speed at or below 'rate' with same PLL. */
-	if (reason != SETRATE_CPUFREQ && tgt_s->a11clk_khz < cur_s->a11clk_khz) {
+	if (for_power_collapse && tgt_s->a11clk_khz < cur_s->a11clk_khz) {
 		while (tgt_s->pll != ACPU_PLL_TCXO && tgt_s->pll != cur_s->pll)
 			tgt_s--;
 	}
@@ -326,7 +323,7 @@ int acpuclk_set_rate(unsigned long rate, enum setrate_reason reason)
 	if (strt_s->pll != ACPU_PLL_TCXO)
 		plls_enabled |= 1 << strt_s->pll;
 
-	if (reason == SETRATE_CPUFREQ) {
+	if (!for_power_collapse) {
 		mutex_lock(&drv_state.lock);
 		if (strt_s->pll != tgt_s->pll && tgt_s->pll != ACPU_PLL_TCXO) {
 			rc = pc_pll_request(tgt_s->pll, 1);
@@ -346,7 +343,7 @@ int acpuclk_set_rate(unsigned long rate, enum setrate_reason reason)
 		}
 	}
 
-	/* Set wait states for CPU in/between frequency changes */
+	/* Set wait states for CPU between frequency changes */
 	reg_clkctl = readl(A11S_CLK_CNTL_ADDR);
 	reg_clkctl |= (100 << 16); /* set WT_ST_CNT */
 	writel(reg_clkctl, A11S_CLK_CNTL_ADDR);
@@ -381,7 +378,7 @@ int acpuclk_set_rate(unsigned long rate, enum setrate_reason reason)
 		printk(KERN_DEBUG "%s: STEP khz = %u, pll = %d\n",
 			__FUNCTION__, cur_s->a11clk_khz, cur_s->pll);
 #endif
-		if (reason == SETRATE_CPUFREQ && cur_s->pll != ACPU_PLL_TCXO
+		if (!for_power_collapse&& cur_s->pll != ACPU_PLL_TCXO
 		    && !(plls_enabled & (1 << cur_s->pll))) {
 			rc = pc_pll_request(cur_s->pll, 1);
 			if (rc < 0) {
@@ -400,7 +397,7 @@ int acpuclk_set_rate(unsigned long rate, enum setrate_reason reason)
 	}
 
 	/* Nothing else to do for power collapse. */
-	if (reason != SETRATE_CPUFREQ)
+	if (for_power_collapse)
 		return 0;
 
 	/* Disable PLLs we are not using anymore. */
@@ -431,14 +428,14 @@ int acpuclk_set_rate(unsigned long rate, enum setrate_reason reason)
 	printk(KERN_DEBUG "%s: ACPU speed change complete\n", __FUNCTION__);
 #endif
 out:
-	if (reason == SETRATE_CPUFREQ)
+	if (!for_power_collapse)
 		mutex_unlock(&drv_state.lock);
 	return rc;
 }
 
 static void __init acpuclk_init(void)
 {
-	struct clkctl_acpu_speed *speed, *max_s;
+	struct clkctl_acpu_speed *speed;
 	uint32_t div, sel;
 	int rc;
 
@@ -474,20 +471,8 @@ static void __init acpuclk_init(void)
 	if (rc < 0)
 		pr_err("Setting AXI min rate failed!\n");
 
-	for (speed = acpu_freq_tbl; speed->a11clk_khz != 0; speed++)
-		;
-	
-	max_s = speed - 1;
-	max_axi_rate = max_s->axiclk_khz * 1000;
-
 	printk(KERN_INFO "ACPU running at %d KHz\n", speed->a11clk_khz);
 }
-
-unsigned long acpuclk_get_max_axi_rate(void)
-{
-	return max_axi_rate;
-}
-EXPORT_SYMBOL(acpuclk_get_max_axi_rate);
 
 unsigned long acpuclk_get_rate(void)
 {
